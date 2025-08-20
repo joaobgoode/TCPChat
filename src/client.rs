@@ -20,13 +20,7 @@ fn main() {
         let reader = BufReader::new(stream_clone);
         for line in reader.lines() {
             match line {
-                Ok(msg) => {
-                    if msg.contains("não está disponível") {
-                        eprintln!("{}", msg);
-                        std::process::exit(1);
-                    }
-                    println!("{}", msg);
-                }
+                Ok(msg) => println!("{}", msg),
                 Err(_) => break,
             }
         }

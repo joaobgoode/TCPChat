@@ -30,12 +30,12 @@ fn broadcast_disconnection(clients: &Clients, sender: &str) {
     let clients = clients.lock().unwrap();
     for (nick, mut stream) in clients.iter() {
         if nick != sender {
-            let _ = writeln!(stream, "{} se desconectou!", sender);
+            let _ = writeln!(stream, "{} se disconectou!", sender);
         }
     }
 }
 
-fn handle_client(stream: TcpStream, clients: Clients, server_nick: String) {
+fn handle_client(stream: TcpStream, clients: Clients) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
 
     let mut nickname = String::new();
@@ -44,22 +44,12 @@ fn handle_client(stream: TcpStream, clients: Clients, server_nick: String) {
     }
     let nickname = nickname.trim().to_string();
 
-    {
-        let mut clients_guard = clients.lock().unwrap();
-
-        if clients_guard.contains_key(&nickname) || nickname == server_nick {
-            let _ = writeln!(
-                stream,
-                "Nickname '{}' não está disponível. Tente outro.",
-                nickname
-            );
-            return;
-        }
-
-        println!("{} conectou!", nickname);
-        broadcast_connection(&clients, &nickname);
-        clients_guard.insert(nickname.clone(), stream.try_clone().unwrap());
-    }
+    println!("{} conectou!", nickname);
+    broadcast_connection(&clients, &nickname);
+    clients
+        .lock()
+        .unwrap()
+        .insert(nickname.clone(), stream.try_clone().unwrap());
 
     for line in reader.lines() {
         match line {
@@ -82,6 +72,21 @@ fn main() {
 
     let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
 
+    let clients_clone = Arc::clone(&clients);
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    let clients_inner = Arc::clone(&clients_clone);
+                    thread::spawn(move || {
+                        handle_client(stream, clients_inner);
+                    });
+                }
+                Err(e) => eprintln!("Erro ao aceitar conexão: {}", e),
+            }
+        }
+    });
+
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
 
@@ -89,23 +94,6 @@ fn main() {
     let mut server_nick = String::new();
     stdin_lock.read_line(&mut server_nick).unwrap();
     let server_nick = server_nick.trim().to_string();
-
-    let clients_clone = Arc::clone(&clients);
-    let server_nick_clone = server_nick.clone();
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    let clients_inner = Arc::clone(&clients_clone);
-                    let server_nick_inner = server_nick_clone.clone();
-                    thread::spawn(move || {
-                        handle_client(stream, clients_inner, server_nick_inner);
-                    });
-                }
-                Err(e) => eprintln!("Erro ao aceitar conexão: {}", e),
-            }
-        }
-    });
 
     loop {
         let mut input = String::new();
