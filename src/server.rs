@@ -55,6 +55,7 @@ fn handle_client(mut stream: TcpStream, clients: Clients, server_nick: String) {
             );
             continue;
         } else {
+            let _ = writeln!(stream, "Ok");
             let _ = writeln!(stream, "Bem-vindo, {}!", nickname);
             break nickname;
         }
